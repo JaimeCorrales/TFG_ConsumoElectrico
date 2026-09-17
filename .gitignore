@@ -1,0 +1,36 @@
+# Entornos virtuales y caché de Python
+venv/
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+
+# Carpetas de datos brutos y pesados
+datos_brutos/
+**/datos_brutos/
+
+# Archivos comprimidos pesados
+*.tzst
+*.tar.gz
+*.zip
+*.rar
+
+# Modelos entrenados y artefactos pesados (Machine Learning)
+*.pkl
+*.joblib
+*.h5
+*.onnx
+*.pt
+*.pth
+
+# Notebooks y archivos temporales
+.ipynb_checkpoints/
+*.log
+
+# Streamlit 
+.streamlit/secrets.toml
+
+# Configuración local de IDEs y Sistema Operativo
+.vscode/
+.DS_Store
+Thumbs.db
