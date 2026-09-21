@@ -78,6 +78,7 @@ fecha_subperiodo = pd.to_datetime("2021-12-31")
 
 lista_resultados = []
 lista_metricas = []
+lista_coeficientes = []  # <<< NUEVO: Guardar coeficientes XAI
 casas_a_procesar = df["cups_id"].unique()
 
 # Configuración de GridSearchCV 
@@ -122,6 +123,14 @@ for cups in casas_a_procesar:
     ruta_modelo_joblib = DIR_MODELOS_PROTOTIPO / f"ridge_{cups}.joblib"
     joblib.dump(mejor_modelo, ruta_modelo_joblib)
     
+    # --- NUEVO (XAI): Extraer Coeficientes Estandarizados del Modelo Ridge ---
+    coefs = mejor_modelo.named_steps["ridge"].coef_
+    dict_coefs = {"cups_id": cups, "ciudad": ciudad_actual}
+    for feat, coef in zip(features, coefs):
+        dict_coefs[feat] = coef
+    lista_coeficientes.append(dict_coefs)
+    # --------------------------------------------------------------------------
+
     # Evaluación final
     y_pred = mejor_modelo.predict(X_test)
     y_pred = np.clip(y_pred, a_min=0, a_max=None) # Evitar consumos negativos
@@ -203,47 +212,65 @@ print(f"  MAE Semestre B (Ene-Jun 22): {mae_B_mean:.4f} kWh")
 signo = "+" if degradacion > 0 else ""
 print(f"  Degradación del modelo:  {signo}{degradacion:.2f}% de error")
 
-print("\n[RENDIMIENTO POR CIUDAD]")
-resumen_ciudad = (
-    df_metricas
-    .groupby("ciudad_asignada")
-    .agg(
-        MAE_media  = ("mae_total", "mean"),
-        MAE_std    = ("mae_total", "std"),
-        RMSE_media = ("rmse",      "mean"),
-        WAPE_media = ("wape",      "mean"),
-        R2_media   = ("r2",        "mean"),
-        n_casas    = ("cups_id",   "count"),
-    )
-    .round(4)
-)
-print(resumen_ciudad.to_string())
+# Interpretación de coeficientes
+print(f"\n--------- PASO 4: Interpretando coeficientes del modelo Ridge ---------")
 
-print("\n[ESTABILIDAD TEMPORAL POR CIUDAD]")
-estabilidad_ciudad = (
-    df_metricas
-    .groupby("ciudad_asignada")
-    .agg(
-        MAE_sub_A = ("mae_sub_A", "mean"),
-        MAE_sub_B = ("mae_sub_B", "mean"),
-    )
-    .round(4)
-)
-estabilidad_ciudad["Degradacion_pct"] = (
-    (estabilidad_ciudad["MAE_sub_B"] - estabilidad_ciudad["MAE_sub_A"]) / 
-    estabilidad_ciudad["MAE_sub_A"] * 100
-).round(2)
-print(estabilidad_ciudad.to_string())
+df_coefs = pd.DataFrame(lista_coeficientes)
+ruta_coefs = DIR_METRICAS / "coeficientes_ridge.csv"
+df_coefs.to_csv(ruta_coefs, index=False)
 
-print("\n[CIUDAD MÁS DIFÍCIL Y MÁS FÁCIL PARA RIDGE]")
-mejor_ciudad = resumen_ciudad["MAE_media"].idxmin()
-peor_ciudad = resumen_ciudad["MAE_media"].idxmax()
-print(f"  Mejor ciudad:  {mejor_ciudad} (MAE={resumen_ciudad.loc[mejor_ciudad, 'MAE_media']:.4f} kWh)")
-print(f"  Peor ciudad:   {peor_ciudad} (MAE={resumen_ciudad.loc[peor_ciudad, 'MAE_media']:.4f} kWh)")
+# Media y dispersión entre las 12 viviendas 
+resumen_coefs = df_coefs[features].agg(["mean", "std"]).T
+resumen_coefs.columns = ["media", "desv_std"]
+resumen_coefs = resumen_coefs.sort_values("media", key=abs, ascending=False)
 
-ruta_ciudad = DIR_METRICAS / "metricas_ridge_por_ciudad.csv"
-ruta_estabilidad = DIR_METRICAS / "estabilidad_ridge_por_ciudad.csv"
+# Variable dominante por vivienda (mayor coeficiente)
+coefs_abs = df_coefs[features].abs()
+df_coefs["variable_dominante"] = coefs_abs.idxmax(axis=1)
+conteo_dominante = df_coefs["variable_dominante"].value_counts()
 
-resumen_ciudad.reset_index().to_csv(ruta_ciudad, index=False)
-estabilidad_ciudad.reset_index().to_csv(ruta_estabilidad, index=False)
-print(f"\nExportados desgloses en: {ruta_ciudad} y {ruta_estabilidad}")
+print("\n[IMPACTO PROMEDIO DE CADA VARIABLE (media ± desv. std entre 12 viviendas)]")
+for var_name, row in resumen_coefs.iterrows():
+    print(f"  - {var_name:20s}: {row['media']:+.4f} ± {row['desv_std']:.4f} kWh (por desv. estándar)")
+
+print("\n[VARIABLE DOMINANTE POR VIVIENDA]")
+for var_name, count in conteo_dominante.items():
+    print(f"  - {var_name:20s}: dominante en {count}/{len(df_coefs)} viviendas")
+
+resumen_coefs.to_csv(DIR_METRICAS / "resumen_coeficientes_ridge.csv")
+
+# Gráfico con media con barra de error (desviación entre viviendas)
+plt.figure(figsize=(10, 6))
+orden = resumen_coefs.sort_values("media").index
+medias = resumen_coefs.loc[orden, "media"]
+errores = resumen_coefs.loc[orden, "desv_std"]
+colores = ["#d9534f" if v < 0 else "#0275d8" for v in medias]
+
+fig, ax = plt.subplots(figsize=(10, 6))
+ax.barh(orden, medias, xerr=errores, color=colores, capsize=4)
+ax.axvline(0, color="black", linestyle="--", linewidth=1.2)
+
+ax.set_title("Importancia y dirección de las variables en Ridge", fontsize=13, fontweight="bold", pad=15)
+ax.set_xlabel("Coeficiente estandarizado (media ± desv. std entre viviendas)", fontsize=11)
+ax.set_ylabel("Variables de entrada", fontsize=11)
+
+for i, (media, err) in enumerate(zip(medias, errores)):
+    offset = 0.01 if media >= 0 else -0.01
+    ha = "left" if media >= 0 else "right"
+    ax.annotate(f"{media:+.3f}", (media + offset, i), va="center", ha=ha,
+                fontsize=10, color="black", fontweight="bold")
+
+plt.tight_layout()
+ruta_grafico = DIR_METRICAS / "coeficientes_ridge.png"
+plt.savefig(ruta_grafico, dpi=300)
+plt.close()
+
+print(f"\nGráfico exportado en: {ruta_grafico}")
+print(f"CSV de coeficientes por vivienda exportado en: {ruta_coefs}")
+print(f"CSV resumen (media/std/dominancia) exportado en: {DIR_METRICAS / 'resumen_coeficientes_ridge.csv'}")
+
+ # % de viviendas con coeficiente positivo
+signos = (df_coefs[features] > 0).mean() * 100 
+print("\n[% DE VIVIENDAS CON COEFICIENTE POSITIVO]")
+for var_name, pct in signos.sort_values(ascending=False).items():
+    print(f"  - {var_name:20s}: {pct:.0f}% positivo")

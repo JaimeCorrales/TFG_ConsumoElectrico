@@ -250,7 +250,11 @@ def _render_curva_aprendizaje(df_plot: pd.DataFrame, tema: dict) -> None:
         height=400,
         xaxis_title="Fecha",
         yaxis_title="MAE (kWh)",
-        legend=dict(orientation="h", y=-0.15),
+        legend=dict(
+            orientation="h", 
+            y=-0.15,
+            font=dict(color=tema["texto"])
+        ),
         margin=dict(l=0, r=0, t=20, b=0),
     )
 
@@ -265,7 +269,7 @@ def _render_curva_aprendizaje(df_plot: pd.DataFrame, tema: dict) -> None:
         title_font=dict(color=tema["texto"])
     )
 
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, use_container_width=True, theme=None)
 
 
 def _render_prediccion_real(
@@ -351,7 +355,11 @@ def _render_prediccion_real(
         height=400,
         xaxis_title="Fecha",
         yaxis_title="kWh",
-        legend=dict(orientation="h", y=-0.15),
+        legend=dict(
+            orientation="h", 
+            y=-0.15,
+            font=dict(color=tema["texto"])
+        ),
         margin=dict(l=0, r=0, t=20, b=0),
     )
 
@@ -366,7 +374,7 @@ def _render_prediccion_real(
         title_font=dict(color=tema["texto"])
     )
 
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, use_container_width=True, theme=None)
 
 def _hex_to_rgb(hex_color: str) -> str:
     h = hex_color.lstrip("#")

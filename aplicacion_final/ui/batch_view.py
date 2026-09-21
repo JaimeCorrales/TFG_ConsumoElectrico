@@ -168,7 +168,11 @@ def _render_serie_temporal(df_plot: pd.DataFrame, modelo_nombre: str, tema: dict
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
         font_color=tema["texto"],
-        legend=dict(orientation="h", y=-0.15),
+        legend=dict(
+            orientation="h", 
+            y=-0.15,
+            font=dict(color=tema["texto"]) 
+        ),
         height=420,
         margin=dict(l=0, r=0, t=20, b=0),
         xaxis_title="Fecha",
@@ -184,7 +188,7 @@ def _render_serie_temporal(df_plot: pd.DataFrame, modelo_nombre: str, tema: dict
         tickfont=dict(color=tema["texto"]),
         title_font=dict(color=tema["texto"]),
     )
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, use_container_width=True, theme=None)
 
 
 def _render_dispersion(df_plot: pd.DataFrame, tema: dict) -> None:
