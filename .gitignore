@@ -12,6 +12,7 @@ datos_brutos/
 # Archivos comprimidos pesados
 *.tzst
 *.tar.gz
+*.tar
 *.zip
 *.rar
 

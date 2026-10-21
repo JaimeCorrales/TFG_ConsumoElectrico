@@ -1,8 +1,10 @@
-import os
 import joblib
 import numpy as np
 import pandas as pd
+from pathlib import Path
 from config import COL_TIMESTAMP, COL_KWH, COL_CUPS, COL_CIUDAD
+
+BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Características requeridas por Ridge
 FEATURES = [
@@ -19,8 +21,8 @@ FEATURES = [
 
 def cargar_dataset_features() -> pd.DataFrame | None:
     """Carga el dataset procesado con todas las features calculadas."""
-    ruta = os.path.join("modelos", "batch", "dataset_features.csv")
-    if not os.path.exists(ruta):
+    ruta = BASE_DIR / "modelos" / "batch" / "dataset_features.csv"
+    if not ruta.exists():
         return None
     df = pd.read_csv(ruta)
     df["timestamp"] = pd.to_datetime(df["timestamp"])
@@ -28,10 +30,10 @@ def cargar_dataset_features() -> pd.DataFrame | None:
 
 def cargar_modelo_ridge(cups_id: str):
     """Carga el modelo individual guardado en .joblib"""
-    ruta = os.path.join("modelos", "batch", "ridge_modelos", f"ridge_{cups_id}.joblib")
-    if not os.path.exists(ruta):
-        ruta_pkl = os.path.join("modelos", "batch", "ridge_modelos", f"ridge_{cups_id}.pkl")
-        if not os.path.exists(ruta_pkl):
+    ruta = BASE_DIR / "modelos" / "batch" / "ridge_modelos" / f"ridge_{cups_id}.joblib"
+    if not ruta.exists():
+        ruta_pkl = BASE_DIR / "modelos" / "batch" / "ridge_modelos" / f"ridge_{cups_id}.pkl"
+        if not ruta_pkl.exists():
             return None
         ruta = ruta_pkl
     return joblib.load(ruta)

@@ -1,8 +1,10 @@
 import os
 import sys
 import streamlit as st
+from pathlib import Path
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+BASE_DIR = Path(__file__).resolve().parent
+sys.path.insert(0, str(BASE_DIR))
 
 from config import TEMAS
 from src.carga import cargar_dataset
@@ -193,7 +195,7 @@ def main() -> None:
     @st.cache_data(show_spinner="Cargando dataset de 15 minutos...")
     def get_dataset_online():
         return cargar_dataset(
-            ruta_archivo=os.path.join("datos", "dataset_online_15min.csv"),
+            ruta_archivo=str(BASE_DIR / "datos" / "dataset_online_15min.csv"),
             columnas_extra=["imputed", "es_interpolado"],
         )
 

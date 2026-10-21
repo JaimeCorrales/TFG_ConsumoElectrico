@@ -237,4 +237,4 @@ def _render_dispersion(df_plot: pd.DataFrame, tema: dict) -> None:
         tickfont=dict(color=tema["texto"]),
         title_font=dict(color=tema["texto"]),
     )
-    st.plotly_chart(fig_disp, use_container_width=True)
+    st.plotly_chart(fig_disp, use_container_width=True, theme=None)
