@@ -15,13 +15,6 @@ MODELOS_BATCH = {
      "Ridge":    "ridge",
 }
 
-MODELOS_ONLINE = {
-    # "SGD Linear": "sgd_linear",
-    "SNARIMAX":   "snarimax",
-    # "HAT":        "hat",
-    # "ARF":        "arf",
-    # "Bandit":     "bandit",
-}
 
 METRICAS_NOMBRES = {
     "mae":  "MAE (kWh)",

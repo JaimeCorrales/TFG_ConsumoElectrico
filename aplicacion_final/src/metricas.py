@@ -42,4 +42,4 @@ def exportar_csv(df_resultados: pd.DataFrame, metricas: dict) -> bytes:
     df_exp = df_resultados.copy()
     for k, v in metricas.items():
         df_exp[k] = v
-    return df_exp.to_csv(index=False).encode("utf-8")
+    return df_exp.to_csv(index=False, sep=';', decimal=',').encode("utf-8-sig")

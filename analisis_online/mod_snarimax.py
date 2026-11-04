@@ -3,6 +3,9 @@ import pandas as pd
 import math
 import time
 import pickle
+import warnings
+import matplotlib.pyplot as plt
+import seaborn as sns
 from river import time_series 
 from river import preprocessing
 from river import metrics
@@ -12,6 +15,10 @@ from river import utils
 from sklearn.metrics import r2_score
 from pathlib import Path
 
+# Configuración visual para las gráficas
+warnings.filterwarnings("ignore")
+sns.set_theme(style="whitegrid")
+
 # Configuración del modelo 
 NOMBRE_MODELO = "snarimax"
 FECHA_EVALUACION = pd.to_datetime("2020-01-01 00:00:00")
@@ -19,16 +26,17 @@ FECHA_EVALUACION = pd.to_datetime("2020-01-01 00:00:00")
 # Rejilla prequencial 
 LEARNING_RATES = [0.0001, 0.001, 0.005, 0.01, 0.1]
 
-DIR_RESULTADOS = os.path.join("resultados", NOMBRE_MODELO)
-DIR_METRICAS = os.path.join("metricas", NOMBRE_MODELO)
-DIR_MODELOS = "modelos"  
+# Configuración de directorios
+SCRIPT_DIR = Path(__file__).resolve().parent
+DIR_RESULTADOS = SCRIPT_DIR / "resultados" / NOMBRE_MODELO
+DIR_METRICAS = SCRIPT_DIR / "metricas" / NOMBRE_MODELO
+DIR_MODELOS = SCRIPT_DIR / "modelos"
 
-os.makedirs(DIR_RESULTADOS, exist_ok=True)
-os.makedirs(DIR_METRICAS, exist_ok=True)
-os.makedirs(DIR_MODELOS, exist_ok=True)
+DIR_RESULTADOS.mkdir(parents=True, exist_ok=True)
+DIR_METRICAS.mkdir(parents=True, exist_ok=True)
+DIR_MODELOS.mkdir(parents=True, exist_ok=True)
 
 print("Cargando dataset...")
-SCRIPT_DIR = Path(__file__).resolve().parent
 ruta_csv = SCRIPT_DIR / "datos" / "dataset_online_15min.csv"
 df = pd.read_csv(ruta_csv)
 df["timestamp"] = pd.to_datetime(df["timestamp"])
@@ -38,6 +46,7 @@ casas = df["cups_id"].unique()
 # Listas para guardar los resultados
 resultados_predicciones = []
 resultados_metricas = []
+lista_coeficientes = []  
 
 # Evaluación prequencial
 for cups in casas:
@@ -95,12 +104,12 @@ for cups in casas:
             "es_fin_de_semana": es_fin_de_semana  
         }
         
-        # Escalado en tiempo real
-        scaler.learn_one(x)
-        x_scaled = scaler.transform_one(x)
-        
         # Fase Warm-Up: Competición de candidatos
         if ts < FECHA_EVALUACION:
+            # Escalado en tiempo real (en el warm-up no se mide la latencia)
+            scaler.learn_one(x)
+            x_scaled = scaler.transform_one(x)
+            
             for lr, m in modelos_grid.items():
                 try:
                     pred = m.forecast(horizon=1, xs=[x_scaled])[0]
@@ -119,7 +128,7 @@ for cups in casas:
                 modelo_seleccionado = modelos_grid[mejor_lr]
                 print(f"   [*] Warm-up completado. Mejor LR: {mejor_lr} (MAE: {metricas_grid[mejor_lr].get():.4f})")
                 
-                ruta_pkl_warmup = os.path.join(DIR_MODELOS, f"{NOMBRE_MODELO}_{cups}_warmup.pkl")
+                ruta_pkl_warmup = DIR_MODELOS / f"{NOMBRE_MODELO}_{cups}_warmup.pkl"
                 artefactos_warmup = {
                     "model": modelo_seleccionado,
                     "scaler": scaler,
@@ -132,6 +141,10 @@ for cups in casas:
                 print(f"   [+] Modelo PKL (Warm-up) guardado en: {ruta_pkl_warmup}")
             
             inicio_t = time.perf_counter() 
+            
+            # Escalado en tiempo real
+            scaler.learn_one(x)
+            x_scaled = scaler.transform_one(x)
             
             try:
                 y_pred = modelo_seleccionado.forecast(horizon=1, xs=[x_scaled])[0]
@@ -159,7 +172,7 @@ for cups in casas:
             y_pred_list.append(y_pred)
             mae_rolling_list.append(mae_rolling.get())
 
-    ruta_pkl_final = os.path.join(DIR_MODELOS, f"{NOMBRE_MODELO}_{cups}_final.pkl")
+    ruta_pkl_final = DIR_MODELOS / f"{NOMBRE_MODELO}_{cups}_final.pkl"
     artefactos_final = {
         "model": modelo_seleccionado,
         "scaler": scaler,
@@ -170,6 +183,16 @@ for cups in casas:
     with open(ruta_pkl_final, "wb") as f:
         pickle.dump(artefactos_final, f)
     print(f"   [+] Modelo PKL (Final) guardado en: {ruta_pkl_final}")
+
+    pesos = modelo_seleccionado.regressor.weights.copy()
+    dict_coefs = {"cups_id": cups, "ciudad": ciudad}
+    dict_coefs.update(pesos)
+    
+    if hasattr(modelo_seleccionado.regressor, 'intercept'):
+        dict_coefs['intercept'] = modelo_seleccionado.regressor.intercept
+        
+    lista_coeficientes.append(dict_coefs)
+    # ---------------------------------------------------------------------------
 
     # Cálculo de métricas
     y_real_arr = pd.Series(y_real_list)
@@ -213,15 +236,9 @@ for cups in casas:
     print(f"   WAPE: {wape_final:.2f}% | R2: {r2_final:.4f}")
     print(f"   DRIFT -> Pre: {mae_pre:.4f} | Confinamiento: {mae_drift:.4f}")
 
-# Consolidación final
+# Consolidación final predictiva
 df_resultados_final = pd.concat(resultados_predicciones).reset_index(drop=True)
 df_metricas_final = pd.DataFrame(resultados_metricas)
-
-DIR_METRICAS = SCRIPT_DIR / "metricas" / "snarimax"
-DIR_METRICAS.mkdir(parents=True, exist_ok=True)
-
-DIR_RESULTADOS = SCRIPT_DIR / "resultados" / "snarimax"
-DIR_RESULTADOS.mkdir(parents=True, exist_ok=True)
 
 ruta_resultados = DIR_RESULTADOS / "resultados_snarimax.csv"
 ruta_metricas = DIR_METRICAS / "metricas_snarimax.csv"
@@ -229,9 +246,73 @@ ruta_metricas = DIR_METRICAS / "metricas_snarimax.csv"
 df_resultados_final.to_csv(ruta_resultados, index=False)
 df_metricas_final.to_csv(ruta_metricas, index=False)
 
-print("-----PROCESO COMPLETADO CON ÉXITO------")
+print("\n----- PROCESO COMPLETADO CON ÉXITO ------")
 print(f"  Predicciones -> {ruta_resultados}")
 print(f"  Métricas     -> {ruta_metricas}")
 print(f"  Modelos PKL  -> {DIR_MODELOS}/")
 print("\nResumen de métricas:")
 print(df_metricas_final[["ciudad", "mejor_lr", "WAPE_Global", "MAE_PreDrift", "MAE_Confinamiento"]].to_string(index=False))
+
+print("\n--------- PASO 4: Interpretando coeficientes finales de SNARIMAX ---------")
+
+df_coefs = pd.DataFrame(lista_coeficientes).fillna(0)
+ruta_coefs = DIR_METRICAS / "coeficientes_snarimax.csv"
+df_coefs.to_csv(ruta_coefs, index=False)
+
+# Extraer solo las columnas que son variables 
+features_snarimax = [c for c in df_coefs.columns if c not in ["cups_id", "ciudad"]]
+
+# Media y dispersión entre las viviendas 
+resumen_coefs = df_coefs[features_snarimax].agg(["mean", "std"]).T
+resumen_coefs.columns = ["media", "desv_std"]
+resumen_coefs = resumen_coefs.sort_values("media", key=abs, ascending=False)
+
+# Variable dominante por vivienda 
+coefs_abs = df_coefs[features_snarimax].abs()
+df_coefs["variable_dominante"] = coefs_abs.idxmax(axis=1)
+conteo_dominante = df_coefs["variable_dominante"].value_counts()
+
+print("\n[IMPACTO PROMEDIO DE CADA VARIABLE (media ± desv. std entre viviendas)]")
+for var_name, row in resumen_coefs.iterrows():
+    print(f"  - {var_name:20s}: {row['media']:+.4f} ± {row['desv_std']:.4f}")
+
+print("\n[VARIABLE DOMINANTE POR VIVIENDA]")
+for var_name, count in conteo_dominante.items():
+    print(f"  - {var_name:20s}: dominante en {count}/{len(df_coefs)} viviendas")
+
+resumen_coefs.to_csv(DIR_METRICAS / "resumen_coeficientes_snarimax.csv")
+
+# Gráfico de importancia
+plt.figure(figsize=(10, 6))
+orden = resumen_coefs.sort_values("media").index
+medias = resumen_coefs.loc[orden, "media"]
+errores = resumen_coefs.loc[orden, "desv_std"]
+colores = ["#d9534f" if v < 0 else "#0275d8" for v in medias]
+
+fig, ax = plt.subplots(figsize=(10, 6))
+ax.barh(orden, medias, xerr=errores, color=colores, capsize=4)
+ax.axvline(0, color="black", linestyle="--", linewidth=1.2)
+
+ax.set_title("Importancia de las variables en SNARIMAX (Pesos finales)", fontsize=13, fontweight="bold", pad=15)
+ax.set_xlabel("Coeficiente (media ± desv. std entre viviendas)", fontsize=11)
+ax.set_ylabel("Variables (Exógenas y Autorregresivas)", fontsize=11)
+
+for i, (media, err) in enumerate(zip(medias, errores)):
+    offset = (medias.max() - medias.min()) * 0.02
+    offset = offset if media >= 0 else -offset
+    ha = "left" if media >= 0 else "right"
+    ax.annotate(f"{media:+.3f}", (media + offset, i), va="center", ha=ha,
+                fontsize=10, color="black", fontweight="bold")
+
+plt.tight_layout()
+ruta_grafico = DIR_METRICAS / "coeficientes_snarimax.png"
+plt.savefig(ruta_grafico, dpi=300)
+plt.close()
+
+print(f"\nGráfico XAI exportado en: {ruta_grafico}")
+
+# % de viviendas con coeficiente positivo
+signos = (df_coefs[features_snarimax] > 0).mean() * 100 
+print("\n[% DE VIVIENDAS CON COEFICIENTE POSITIVO]")
+for var_name, pct in signos.sort_values(ascending=False).items():
+    print(f"  - {var_name:20s}: {pct:.0f}% positivo")

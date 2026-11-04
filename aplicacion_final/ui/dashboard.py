@@ -72,6 +72,10 @@ def render_dashboard(df: pd.DataFrame, tema: dict) -> None:
 
     df_f = filtrar_datos(df, ciudad_sel, cups_sel, fecha_i, fecha_f)
     if df_f.empty:
+        st.warning(
+            "No hay registros para la combinación de filtros seleccionada. "
+            "Prueba a ampliar el rango de fechas o a cambiar la ciudad o la vivienda."
+        )
         return
 
     # Resamplear según granularidad

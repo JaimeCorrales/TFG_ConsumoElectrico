@@ -35,3 +35,9 @@ datos_brutos/
 .vscode/
 .DS_Store
 Thumbs.db
+
+*.csv
+
+!aplicacion_final/modelos/online/river_snarimax_warmup.pkl
+
+*.code-workspace

@@ -1,14 +1,12 @@
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
-from config import COL_CIUDAD, COL_CUPS
+from config import COL_CIUDAD, COL_CUPS, MODELOS_BATCH
 from src.metricas import calcular_metricas, exportar_csv
 from src.prediccion_batch import cargar_dataset_features, ejecutar_inferencia_batch
 
 
 def render_batch(tema: dict) -> None:
-    st.markdown("## Predicción a largo plazo — Regression Ridge")
-
     # Usamos caché de Streamlit a nivel de vista para no sobrecargar el disco
     @st.cache_data
     def get_features_cached():
@@ -31,13 +29,14 @@ def render_batch(tema: dict) -> None:
         )
         return
 
-    modelo_nombre = "Regression Ridge"
-    modelo_clave = "ridge"
-
     # Filtros sidebar
     with st.sidebar:
-        st.markdown("### Configuración batch learning")
-        st.info(f"**Modelo activo:** {modelo_nombre}")
+        st.markdown("### Configuración Inicial")
+        
+        st.info("Modelo activo: Regression Ridge")
+        
+        modelo_nombre = "Regression Ridge"
+        modelo_clave = MODELOS_BATCH.get("Regression Ridge", "ridge") 
 
         ciudades = sorted(df_trabajo[COL_CIUDAD].dropna().unique().tolist())
         ciudad_sel = st.selectbox("Ciudad", ciudades, key="batch_ciudad")
@@ -50,6 +49,7 @@ def render_batch(tema: dict) -> None:
         cups_sel = st.selectbox(
             "Vivienda (CUPS)", sorted(cups_disp), key="batch_cups"
         )
+    st.markdown(f"## Predicción a largo plazo — {modelo_nombre}")
 
     # Filtrado inicial del dataset
     df_filtrado = df_trabajo[
@@ -95,9 +95,9 @@ def render_batch(tema: dict) -> None:
         st.warning("No hay datos en el rango temporal seleccionado.")
         return
 
-    # Inferencia
+    # Inferencia usando la clave del modelo seleccionado
     with st.spinner(f"Ejecutando inferencia con {modelo_nombre}..."):
-        df_plot = ejecutar_inferencia_batch(df_filtrado)
+        df_plot = ejecutar_inferencia_batch(df_filtrado, clave=modelo_clave)
 
     if df_plot.empty:
         st.error(

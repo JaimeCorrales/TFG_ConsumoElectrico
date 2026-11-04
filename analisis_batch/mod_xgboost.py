@@ -6,6 +6,7 @@ from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 import matplotlib.pyplot as plt
 import seaborn as sns
 import warnings
+import time 
 from pathlib import Path
 
 warnings.filterwarnings("ignore")
@@ -69,6 +70,8 @@ param_grid = {
     'learning_rate': [0.03, 0.05]
 }
 
+tiempo_inicio_total = time.time()
+
 for cups in casas_a_procesar:
     df_cups = df[df["cups_id"] == cups].copy()
     ciudad_actual = df_cups["ciudad_asignada"].iloc[0]
@@ -83,6 +86,8 @@ for cups in casas_a_procesar:
         
     X_train, y_train = train[features], train[target]
     X_test,  y_test  = test[features],  test[target]
+    
+    tiempo_inicio_casa = time.time()
     
     modelo_base = xgb.XGBRegressor(
         subsample=0.8,
@@ -104,6 +109,9 @@ for cups in casas_a_procesar:
     
     y_pred = mejor_modelo.predict(X_test)
     y_pred = np.clip(y_pred, a_min=0, a_max=None)
+    
+    tiempo_fin_casa = time.time()
+    latencia_casa = tiempo_fin_casa - tiempo_inicio_casa
     
     lista_resultados.append(pd.DataFrame({
         "cups_id":      cups,
@@ -134,6 +142,7 @@ for cups in casas_a_procesar:
         "best_n_estimators": grid_search.best_params_["n_estimators"],
         "best_max_depth":    grid_search.best_params_["max_depth"],
         "best_lr":           grid_search.best_params_["learning_rate"],
+        "latencia_segundos": latencia_casa, 
         "mae_total": mae_total, 
         "mae_sub_A": mae_A,
         "mae_sub_B": mae_B,
@@ -141,6 +150,9 @@ for cups in casas_a_procesar:
         "wape": wape_total, 
         "r2": r2_total
     })
+
+tiempo_fin_total = time.time()
+latencia_total_script = tiempo_fin_total - tiempo_inicio_total
 
 print(f"\n--------- PASO 3: Resultados consolidados XGBoost ---------")
 print(f"Casas procesadas con éxito: {len(lista_metricas)}")
@@ -157,6 +169,7 @@ if len(lista_resultados) > 0:
 
 df_export_metricas = df_metricas.rename(columns={
     "ciudad_asignada": "ciudad",
+    "latencia_segundos": "Latencia_s", 
     "mae_total":  "MAE",
     "mae_sub_A":  "MAE_A",
     "mae_sub_B":  "MAE_B",
@@ -166,7 +179,7 @@ df_export_metricas = df_metricas.rename(columns={
 })
 
 ruta_metricas = DIR_METRICAS / "metricas_xgboost.csv"
-df_export_metricas[["cups_id", "ciudad", "MAE", "MAE_A", "MAE_B", "RMSE", "WAPE", "R2", "best_n_estimators", "best_max_depth", "best_lr"]].to_csv(ruta_metricas, index=False)
+df_export_metricas[["cups_id", "ciudad", "MAE", "MAE_A", "MAE_B", "RMSE", "WAPE", "R2", "Latencia_s", "best_n_estimators", "best_max_depth", "best_lr"]].to_csv(ruta_metricas, index=False)
 print(f"Exportado resumen de métricas en: {ruta_metricas}")
 
 print("\n[RENDIMIENTO GLOBAL (1 AÑO)]")
@@ -174,6 +187,10 @@ print(f"  MAE:  {df_metricas['mae_total'].mean():.4f} ± {df_metricas['mae_total
 print(f"  RMSE: {df_metricas['rmse'].mean():.4f} ± {df_metricas['rmse'].std():.4f} kWh")
 print(f"  WAPE: {df_metricas['wape'].mean():.2f} ± {df_metricas['wape'].std():.2f} %")
 print(f"  R²:   {df_metricas['r2'].mean()*100:.2f} ± {df_metricas['r2'].std()*100:.2f} %")
+
+print("\n[COSTE COMPUTACIONAL (LATENCIA)]")
+print(f"  Latencia media por vivienda (GridSearch + Fit + Predict): {df_metricas['latencia_segundos'].mean():.4f} segundos")
+print(f"  Latencia total del proceso ({len(lista_metricas)} viviendas): {latencia_total_script:.2f} segundos")
 
 print("\n[ESTABILIDAD TEMPORAL]")
 print(f"  MAE Semestre A (Jun-Dic 21): {df_metricas['mae_sub_A'].mean():.4f} kWh")

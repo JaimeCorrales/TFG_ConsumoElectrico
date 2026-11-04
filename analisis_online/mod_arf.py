@@ -49,7 +49,7 @@ for cups in casas:
                 n_models=n,
                 grace_period=gp,
                 leaf_prediction=lp,
-                seed=42 # Fijamos semilla para reproducibilidad según tu memoria
+                seed=42 # Fijamos semilla para reproducibilidad
             )
         ) for n, gp, lp in combinaciones
     }

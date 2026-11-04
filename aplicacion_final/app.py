@@ -204,6 +204,12 @@ def main() -> None:
         df = get_dataset_base()
         if df is not None:
             render_dashboard(df, tema)
+        else:
+            st.error(
+                "No se pudo cargar el conjunto de datos histórico. Comprueba que "
+                "existe 'datos/dataset_final_IA.csv' y que contiene las columnas "
+                "requeridas."
+            )
 
     elif pagina == " Predicción batch":
         render_batch(tema)

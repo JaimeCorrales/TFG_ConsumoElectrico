@@ -1,5 +1,5 @@
-ciudad_asignada,MAE_media,MAE_std,RMSE_media,WAPE_media,R2_media,n_casas
-Bilbao,0.3061,0.4126,0.5628,74.9428,-11.3961,3
-Coruna A,0.3355,0.2352,0.7335,96.2383,-4.2191,3
-Madrid,0.1028,0.0528,0.1879,76.4226,-0.6448,3
-Valencia,0.1173,0.0674,0.1746,141.8804,-51.1267,3
+ciudad_asignada,MAE_media,MAE_std,RMSE_media,WAPE_media,R2_media,Latencia_media,n_casas
+Bilbao,0.221,0.2654,0.3536,64.0494,26.0754,347.1327,3
+Coruna A,0.1613,0.1096,0.3494,50.604,70.0892,395.7766,3
+Madrid,0.093,0.0568,0.17,65.5406,19.6474,347.3498,3
+Valencia,0.0539,0.0169,0.1205,49.6055,31.4108,473.9295,3

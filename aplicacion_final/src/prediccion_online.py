@@ -3,40 +3,33 @@ import os
 import pickle
 import pandas as pd
 from river import linear_model, optim, preprocessing, time_series
-from config import COL_KWH, COL_TEMP, COL_TIMESTAMP
+from config import COL_KWH, COL_TEMP, COL_TIMESTAMP, DIR_ONLINE
 
 def cargar_modelo_snarimax_inicial(cups_sel: str) -> dict:
-    """Carga el modelo SNARIMAX específico desde el archivo Warm-up.
-    Si no lo encuentra o no existe la vivienda, inicializa uno nuevo (Cold Start).
-    """
-    ruta_modelo = os.path.join("modelos", "online", "river_snarimax_warmup.pkl")
-
-    if os.path.exists(ruta_modelo):
+    ruta_modelo = os.path.join(DIR_ONLINE, "river_snarimax_warmup.pkl")
+    if not os.path.exists(ruta_modelo):
+        motivo = f"no existe {ruta_modelo}"
+    else:
         try:
             with open(ruta_modelo, "rb") as f:
                 modelos_dict = pickle.load(f)
-
             if cups_sel in modelos_dict:
-                return modelos_dict[cups_sel]
+                obj = modelos_dict[cups_sel]
+                obj["origen"] = "warmup"
+                return obj
+            motivo = "la vivienda no está en el fichero de warm-up"
         except Exception as e:
-            print(f"Error al leer el archivo pkl de Warm-up: {e}")
+            motivo = f"error al leer el .pkl ({e})"
 
-    # Fallback (Cold start)
     return {
         "model": time_series.SNARIMAX(
-            p=1,
-            d=0,
-            q=1,
-            m=96,
-            sp=1,
-            sd=0,
-            sq=0,
-            regressor=linear_model.LinearRegression(
-                optimizer=optim.SGD(lr=0.01)
-            ),
+            p=1, d=0, q=1, m=96, sp=1, sd=0, sq=0,
+            regressor=linear_model.LinearRegression(optimizer=optim.SGD(lr=0.01)),
         ),
         "scaler": preprocessing.StandardScaler(),
         "mejor_lr": 0.01,
+        "origen": "cold_start",
+        "motivo": motivo,
     }
 
 

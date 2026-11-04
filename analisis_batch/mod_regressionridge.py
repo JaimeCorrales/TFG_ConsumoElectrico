@@ -2,6 +2,7 @@ import warnings
 import joblib 
 import numpy as np
 import pandas as pd
+import time  
 from pathlib import Path
 from sklearn.linear_model import Ridge
 from sklearn.preprocessing import StandardScaler
@@ -78,7 +79,7 @@ fecha_subperiodo = pd.to_datetime("2021-12-31")
 
 lista_resultados = []
 lista_metricas = []
-lista_coeficientes = []  # <<< NUEVO: Guardar coeficientes XAI
+lista_coeficientes = []  # Guardar coeficientes XAI
 casas_a_procesar = df["cups_id"].unique()
 
 # Configuración de GridSearchCV 
@@ -86,6 +87,8 @@ tscv = TimeSeriesSplit(n_splits=5)
 param_grid = {
     "ridge__alpha": [0.01, 0.1, 1.0, 10.0, 100.0, 500.0, 1000.0] 
 }
+
+tiempo_inicio_total = time.time()
 
 for cups in casas_a_procesar:
     df_cups = df[df["cups_id"] == cups].copy()
@@ -101,6 +104,8 @@ for cups in casas_a_procesar:
         
     X_train, y_train = train[features], train[target]
     X_test,  y_test  = test[features],  test[target]
+    
+    tiempo_inicio_casa = time.time()
     
     # Búsqueda de hiperparámetros 
     modelo_pipeline = Pipeline([
@@ -123,17 +128,19 @@ for cups in casas_a_procesar:
     ruta_modelo_joblib = DIR_MODELOS_PROTOTIPO / f"ridge_{cups}.joblib"
     joblib.dump(mejor_modelo, ruta_modelo_joblib)
     
-    # --- NUEVO (XAI): Extraer Coeficientes Estandarizados del Modelo Ridge ---
+    # Extraer Coeficientes Estandarizados del Modelo Ridge (XAI)
     coefs = mejor_modelo.named_steps["ridge"].coef_
     dict_coefs = {"cups_id": cups, "ciudad": ciudad_actual}
     for feat, coef in zip(features, coefs):
         dict_coefs[feat] = coef
     lista_coeficientes.append(dict_coefs)
-    # --------------------------------------------------------------------------
 
     # Evaluación final
     y_pred = mejor_modelo.predict(X_test)
     y_pred = np.clip(y_pred, a_min=0, a_max=None) # Evitar consumos negativos
+    
+    tiempo_fin_casa = time.time()
+    latencia_casa = tiempo_fin_casa - tiempo_inicio_casa
     
     # Guardar predicciones
     lista_resultados.append(pd.DataFrame({
@@ -163,6 +170,7 @@ for cups in casas_a_procesar:
         "cups_id": cups, 
         "ciudad_asignada": ciudad_actual, 
         "mejor_alpha": mejor_alpha,
+        "latencia_segundos": latencia_casa, 
         "mae_total": mae_total, 
         "mae_sub_A": mae_A,
         "mae_sub_B": mae_B,
@@ -170,6 +178,9 @@ for cups in casas_a_procesar:
         "wape": wape_total, 
         "r2": r2_total
     })
+
+tiempo_fin_total = time.time()
+latencia_total_script = tiempo_fin_total - tiempo_inicio_total
 
 print(f"\n--------- PASO 3: Resultados consolidados Ridge ---------")
 print(f"Casas procesadas y modelos exportados: {len(lista_metricas)}")
@@ -185,6 +196,7 @@ if len(lista_resultados) > 0:
 
 df_export_metricas = df_metricas.rename(columns={
     "ciudad_asignada": "ciudad",
+    "latencia_segundos": "Latencia_s", 
     "mae_total":  "MAE",
     "mae_sub_A":  "MAE_A",
     "mae_sub_B":  "MAE_B",
@@ -194,7 +206,7 @@ df_export_metricas = df_metricas.rename(columns={
 })
 
 ruta_metricas = DIR_METRICAS / "metricas_ridge.csv"
-df_export_metricas[["cups_id", "ciudad", "MAE", "MAE_A", "MAE_B", "RMSE", "WAPE", "R2", "mejor_alpha"]].to_csv(ruta_metricas, index=False)
+df_export_metricas[["cups_id", "ciudad", "MAE", "MAE_A", "MAE_B", "RMSE", "WAPE", "R2", "Latencia_s", "mejor_alpha"]].to_csv(ruta_metricas, index=False)
 print(f"Resumen de métricas de test exportado en: {ruta_metricas}")
 
 print("\n[RENDIMIENTO GLOBAL EN TEST (1 AÑO)]")
@@ -203,10 +215,14 @@ print(f"  RMSE: {df_metricas['rmse'].mean():.4f} ± {df_metricas['rmse'].std():.
 print(f"  WAPE: {df_metricas['wape'].mean():.2f} ± {df_metricas['wape'].std():.2f} %")
 print(f"  R²:   {df_metricas['r2'].mean()*100:.2f} ± {df_metricas['r2'].std()*100:.2f} %")
 
+print("\n[COSTE COMPUTACIONAL (LATENCIA)]")
+print(f"  Latencia media por vivienda (Fit + Predict): {df_metricas['latencia_segundos'].mean():.4f} segundos")
+print(f"  Latencia total del proceso ({len(lista_metricas)} viviendas): {latencia_total_script:.2f} segundos")
+
 print("\n[ESTABILIDAD TEMPORAL EN TEST]")
 mae_A_mean = df_metricas['mae_sub_A'].mean()
 mae_B_mean = df_metricas['mae_sub_B'].mean()
-degradacion = ((mae_B_mean - mae_A_mean) / mae_A_mean) * 100
+degradacion = ((mae_B_mean - mae_A_mean) / mae_A_mean) * 100 
 print(f"  MAE Semestre A (Jun-Dic 21): {mae_A_mean:.4f} kWh")
 print(f"  MAE Semestre B (Ene-Jun 22): {mae_B_mean:.4f} kWh")
 signo = "+" if degradacion > 0 else ""
@@ -269,7 +285,7 @@ print(f"\nGráfico exportado en: {ruta_grafico}")
 print(f"CSV de coeficientes por vivienda exportado en: {ruta_coefs}")
 print(f"CSV resumen (media/std/dominancia) exportado en: {DIR_METRICAS / 'resumen_coeficientes_ridge.csv'}")
 
- # % de viviendas con coeficiente positivo
+# % de viviendas con coeficiente positivo
 signos = (df_coefs[features] > 0).mean() * 100 
 print("\n[% DE VIVIENDAS CON COEFICIENTE POSITIVO]")
 for var_name, pct in signos.sort_values(ascending=False).items():
