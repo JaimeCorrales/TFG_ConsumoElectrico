@@ -79,7 +79,7 @@ fecha_subperiodo = pd.to_datetime("2021-12-31")
 
 lista_resultados = []
 lista_metricas = []
-lista_coeficientes = []  # Guardar coeficientes XAI
+lista_coeficientes = []  
 casas_a_procesar = df["cups_id"].unique()
 
 # Configuración de GridSearchCV 

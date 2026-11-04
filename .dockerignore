@@ -12,3 +12,5 @@ venv
 env
 .VSCode
 .idea
+.DS_Store
+*.md

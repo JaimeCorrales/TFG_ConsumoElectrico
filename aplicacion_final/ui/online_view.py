@@ -195,7 +195,6 @@ def render_online(df_base: pd.DataFrame, tema: dict) -> None:
         if modelo_vivo.get("origen") == "warmup":
             st.success(
                 "Modelo calentado con datos hasta 2019-12-31 "
-                f"(learning rate seleccionado: {modelo_vivo.get('mejor_lr')})."
             )
         else:
             st.warning(

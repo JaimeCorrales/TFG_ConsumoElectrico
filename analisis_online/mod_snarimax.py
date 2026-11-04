@@ -192,7 +192,6 @@ for cups in casas:
         dict_coefs['intercept'] = modelo_seleccionado.regressor.intercept
         
     lista_coeficientes.append(dict_coefs)
-    # ---------------------------------------------------------------------------
 
     # Cálculo de métricas
     y_real_arr = pd.Series(y_real_list)
@@ -316,3 +315,28 @@ signos = (df_coefs[features_snarimax] > 0).mean() * 100
 print("\n[% DE VIVIENDAS CON COEFICIENTE POSITIVO]")
 for var_name, pct in signos.sort_values(ascending=False).items():
     print(f"  - {var_name:20s}: {pct:.0f}% positivo")
+
+# Consolidar warm-up.
+print("\n--------- PASO 5: Consolidando artefactos warmup para la app final ---------")
+DESTINO_APP = SCRIPT_DIR.parent / "aplicacion_final" / "modelos" / "online" / "river_snarimax_warmup.pkl"
+
+archivos_warmup = sorted(DIR_MODELOS.glob("snarimax_*_warmup.pkl"))
+if not archivos_warmup:
+    print(f"No se encontraron archivos *_warmup.pkl en {DIR_MODELOS}.")
+else:
+    consolidado = {}
+    for ruta in archivos_warmup:
+        with open(ruta, "rb") as f:
+            art = pickle.load(f)
+        consolidado[art["cups_id"]] = {
+            "model": art["model"],
+            "scaler": art["scaler"],
+            "mejor_lr": art["mejor_lr"],
+            "ciudad": art["ciudad"],
+        }
+
+    DESTINO_APP.parent.mkdir(parents=True, exist_ok=True)
+    with open(DESTINO_APP, "wb") as f:
+        pickle.dump(consolidado, f)
+
+    print(f" Consolidadas {len(consolidado)} viviendas en: {DESTINO_APP}")

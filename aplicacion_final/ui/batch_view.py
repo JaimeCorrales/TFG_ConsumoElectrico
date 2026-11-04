@@ -33,10 +33,16 @@ def render_batch(tema: dict) -> None:
     with st.sidebar:
         st.markdown("### Configuración Inicial")
         
-        st.info("Modelo activo: Regression Ridge")
+        # Extracción dinámica
+        modelos_disponibles = list(MODELOS_BATCH.keys())
+        if not modelos_disponibles:
+            st.error("No hay modelos batch configurados en config.py")
+            return
+            
+        modelo_nombre = modelos_disponibles[0]
+        modelo_clave = MODELOS_BATCH[modelo_nombre]
         
-        modelo_nombre = "Regression Ridge"
-        modelo_clave = MODELOS_BATCH.get("Regression Ridge", "ridge") 
+        st.info(f"Modelo activo: {modelo_nombre}")
 
         ciudades = sorted(df_trabajo[COL_CIUDAD].dropna().unique().tolist())
         ciudad_sel = st.selectbox("Ciudad", ciudades, key="batch_ciudad")
@@ -49,7 +55,8 @@ def render_batch(tema: dict) -> None:
         cups_sel = st.selectbox(
             "Vivienda (CUPS)", sorted(cups_disp), key="batch_cups"
         )
-    st.markdown(f"## Predicción a largo plazo — {modelo_nombre}")
+        
+    st.markdown(f"## Predicción estática (Batch) — {modelo_nombre}")
 
     # Filtrado inicial del dataset
     df_filtrado = df_trabajo[
@@ -101,8 +108,7 @@ def render_batch(tema: dict) -> None:
 
     if df_plot.empty:
         st.error(
-            "No se pudieron cargar los modelos .joblib para las viviendas"
-            " seleccionadas."
+            f"No se pudieron cargar los modelos .joblib para {modelo_nombre} en la vivienda seleccionada."
         )
         return
 
